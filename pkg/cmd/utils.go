@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strings"
 
 	"github.com/andrewheberle/redacted-string"
 	"github.com/go-git/go-git/v6"
@@ -138,46 +139,34 @@ func (c *rootCommand) gitPull(w *git.Worktree) error {
 	return nil
 }
 
-func (c *rootCommand) composePull() error {
-	stdOut := new(bytes.Buffer)
-	stdErr := new(bytes.Buffer)
-	cmd := exec.Command("docker", "compose", "pull")
-	cmd.Dir = c.directory
-	cmd.Stdout = stdOut
-	cmd.Stderr = stdErr
-
-	if err := cmd.Run(); err != nil {
-		attrs := make([]slog.Attr, 0)
-		if stdOut.Len() > 0 {
-			attrs = append(attrs, slog.String("stdout", stdOut.String()))
-		}
-		if stdErr.Len() > 0 {
-			attrs = append(attrs, slog.String("stderr", stdErr.String()))
-		}
-		slog.LogAttrs(context.Background(), slog.LevelError, "docker compose pull", attrs...)
-		return fmt.Errorf("error during docker compose pull: %w", err)
+func (c *rootCommand) composeUp(composeFiles []string) error {
+	args := []string{"compose", "--progress", "quiet"}
+	for _, f := range composeFiles {
+		args = append(args, "-f", f)
 	}
+	args = append(args, "up", "-d", "--remove-orphans", "--pull", "always")
 
-	return nil
+	return c.docker(args)
 }
 
-func (c *rootCommand) composeUp() error {
+func (c *rootCommand) docker(args []string) error {
 	stdOut := new(bytes.Buffer)
 	stdErr := new(bytes.Buffer)
-	cmd := exec.Command("docker", "compose", "up", "-d")
+
+	cmd := exec.Command("docker", args...)
 	cmd.Dir = c.directory
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
 
 	if err := cmd.Run(); err != nil {
-		attrs := make([]slog.Attr, 0)
+		attrs := []slog.Attr{slog.String("args", strings.Join(args, " "))}
 		if stdOut.Len() > 0 {
 			attrs = append(attrs, slog.String("stdout", stdOut.String()))
 		}
 		if stdErr.Len() > 0 {
 			attrs = append(attrs, slog.String("stderr", stdErr.String()))
 		}
-		slog.LogAttrs(context.Background(), slog.LevelError, "docker compose up -d", attrs...)
+		slog.LogAttrs(context.Background(), slog.LevelError, "docker", attrs...)
 		return fmt.Errorf("error during docker compose up: %w", err)
 	}
 

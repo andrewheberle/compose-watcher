@@ -13,9 +13,10 @@ import (
 
 type watchCommand struct {
 	// command line args
-	clone    bool
-	interval time.Duration
-	onStart  bool
+	clone        bool
+	interval     time.Duration
+	onStart      bool
+	composeFiles []string
 
 	*simplecommand.Command
 }
@@ -29,6 +30,7 @@ func (c *watchCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().DurationVar(&c.interval, "interval", time.Minute*5, "Refresh interval")
 	cmd.Flags().BoolVar(&c.onStart, "onstart", false, "Run pull and up on start")
 	cmd.Flags().BoolVar(&c.clone, "clone", false, "Clone repository on start")
+	cmd.Flags().StringSliceVar(&c.composeFiles, "compose", []string{"docker-compose.yml"}, "Compose files to use")
 
 	return nil
 }
@@ -70,11 +72,7 @@ func (c *watchCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args
 
 	// do inital startup (errors are fatal at this point)
 	if c.onStart {
-		if err := root.composePull(); err != nil {
-			return err
-		}
-
-		if err := root.composeUp(); err != nil {
+		if err := root.composeUp(c.composeFiles); err != nil {
 			return err
 		}
 	}
@@ -107,12 +105,7 @@ func (c *watchCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args
 			commit = current
 			slog.Info("changes found", "commit", commit.Hash)
 
-			if err := root.composePull(); err != nil {
-				slog.Error("could not run docker compose pull", "error", err)
-				break
-			}
-
-			if err := root.composeUp(); err != nil {
+			if err := root.composeUp(c.composeFiles); err != nil {
 				slog.Error("could not run docker compose up", "error", err)
 			}
 

@@ -12,7 +12,8 @@ import (
 
 type checkCommand struct {
 	// command line args
-	force bool
+	force        bool
+	composeFiles []string
 
 	*simplecommand.Command
 }
@@ -24,6 +25,7 @@ func (c *checkCommand) Init(cd *simplecobra.Commandeer) error {
 
 	cmd := cd.CobraCommand
 	cmd.Flags().BoolVar(&c.force, "force", false, "Always start containers via Docker Compose")
+	cmd.Flags().StringSliceVar(&c.composeFiles, "compose", []string{"docker-compose.yml"}, "Compose files to use")
 
 	return nil
 }
@@ -61,11 +63,7 @@ func (c *checkCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args
 
 	// do compose pull/up if forced or changes
 	if c.force || commit.Hash.String() != current.Hash.String() {
-		if err := root.composePull(); err != nil {
-			return err
-		}
-
-		if err := root.composeUp(); err != nil {
+		if err := root.composeUp(c.composeFiles); err != nil {
 			return err
 		}
 	} else {
